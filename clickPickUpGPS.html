@@ -1,0 +1,181 @@
+<html>
+    <head>
+        <title>Generate files from google maps</title>
+        <meta name="viewport" content="initial-scale=1.0">
+        <meta charset="utf-8">
+        <style>          
+            #map { 
+                height: 400px;    
+                width: 1200px;            
+            }          
+        </style>
+
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            .label {
+                color: white;
+                padding: 8px;
+                font-family: Arial;
+            }
+            .success {background-color: #4CAF50;} /* Green */
+            .info {background-color: #2196F3;} /* Blue */
+            .warning {background-color: #ff9800;} /* Orange */
+            .danger {background-color: #f44336;} /* Red */ 
+            .other {background-color: #e7e7e7; color: black;} /* Gray */ 
+        </style>
+
+
+        <style>
+            .labell {
+                color: white;
+                padding: 8px;
+                font-family: Arial;
+                width: 180px;
+            }
+            .other {background-color: #e7e7e7; color: black;} /* Gray */ 
+        </style>
+
+    </head>    
+
+    <body>
+
+        <div style="padding:10px">
+            <div id="map"></div>
+        </div>
+
+        <div>
+
+            <p> <span class="label warning">Latitude</span>
+                <span class="labell other" id="latmoved"></span> </p>
+            <p> <span class="label warning">Longitude</span>
+                <span class="labell other" id="longmoved"></span> </p>
+
+            <p> <span class="label success">Double click on the map: add a marker</span>
+                <span class="label info">Single click on the marker: add GPS position to file</span>
+
+            <div>
+                <textarea id="dataToFile" name="msg" placeholder="Latitude,Longitude\r\n" rows="6" cols="120"></textarea>
+            </div>
+            <span>
+                <input type="text" id="fileName" placeholder="NameOfFile.csv" />
+            </span>
+            <span>
+                <input type="button" id="bt" value="Save data to file" onclick="saveFile()" />
+            </span>
+
+        </div>
+
+        <script type="text/javascript">
+            var map;
+
+            document.getElementById('dataToFile').value = "Latitude,Longitude\r\n"
+
+            function initMap() {
+
+                var latitude = 0.359905; // center
+                var longitude = -78.110968; //
+
+                var myLatLng = {lat: latitude, lng: longitude};
+
+                map = new google.maps.Map(document.getElementById('map'), {
+                    center: myLatLng,
+                    zoom: 14,
+                    disableDoubleClickZoom: true, // disable the default map zoom on double click
+                });
+
+                // Update lat/long value of div when anywhere in the map is clicked    
+                //google.maps.event.addListener(map,'click',function(event) {                
+                // document.getElementById('latclicked').innerHTML = event.latLng.lat();
+                // document.getElementById('longclicked').innerHTML =  event.latLng.lng();
+                //document.getElementById('latclicked').value = event.latLng.lat();
+                //document.getElementById('longclicked').value = event.latLng.lng();
+
+                //});
+
+                // Update lat/long value of div when you move the mouse over the map
+                google.maps.event.addListener(map, 'mousemove', function (event) {
+                    document.getElementById('latmoved').innerHTML = event.latLng.lat();
+                    document.getElementById('longmoved').innerHTML = event.latLng.lng();
+                });
+
+                var marker = new google.maps.Marker({
+                    position: myLatLng,
+                    map: map,
+                    //title: 'Hello World'
+
+                    // setting latitude & longitude as title of the marker
+                    // title is shown when you hover over the marker
+                    title: latitude + ', ' + longitude
+                });
+
+                // Update lat/long value of div when the marker is clicked
+                marker.addListener('click', function (event) {
+                    //document.getElementById('latclicked').innerHTML = event.latLng.lat();
+                    //document.getElementById('longclicked').innerHTML =  event.latLng.lng();
+                });
+
+                // Create new marker on double click event on the map
+                google.maps.event.addListener(map, 'dblclick', function (event) {
+                    var marker = new google.maps.Marker({
+                        position: event.latLng,
+                        map: map,
+                        title: event.latLng.lat() + ', ' + event.latLng.lng()
+                    });
+
+                    // Update lat/long value of div when the marker is clicked
+                    marker.addListener('click', function (event) {
+                        let data = document.getElementById('dataToFile').value
+                                + event.latLng.lat() + ',' + event.latLng.lng() + '\r' + '\n';
+
+                        document.getElementById('dataToFile').value = data;
+
+                    });
+                });
+
+                // Create new marker on single click event on the map
+                /*google.maps.event.addListener(map,'click',function(event) {
+                 var marker = new google.maps.Marker({
+                 position: event.latLng, 
+                 map: map, 
+                 title: event.latLng.lat()+', '+event.latLng.lng()
+                 });                
+                 });*/
+            }
+        </script>
+
+        <script>
+            let saveFile = () => {
+
+                // Get the data from each element on the form.
+                // const name = document.getElementById('txtName');
+                // const age = document.getElementById('txtAge');
+
+                //const latt = document.getElementById('latclicked');
+                //const lngg = document.getElementById('longclicked');
+                const filename = document.getElementById('fileName');
+                const data = document.getElementById('dataToFile');
+
+                // Convert the text to BLOB.
+                const textToBLOB = new Blob([data.value], {type: 'text/plain'});
+
+                const sFileName = filename.value;	   // The file to save the data.
+
+                let newLink = document.createElement("a");
+                newLink.download = sFileName;
+
+                if (window.webkitURL !== null) {
+                    newLink.href = window.webkitURL.createObjectURL(textToBLOB);
+                } else {
+                    newLink.href = window.URL.createObjectURL(textToBLOB);
+                    newLink.style.display = "none";
+                    document.body.appendChild(newLink);
+                }
+
+                newLink.click();
+            }
+        </script>
+
+        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAxyTouIqS3cJswsst4kpNWGbKwrwbkmd0&callback=initMap"
+        async defer></script>
+    </body>    
+</html>

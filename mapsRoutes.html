@@ -1,0 +1,940 @@
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Rutas</title>
+        <style>
+
+            div#pagination {
+                border: 1px solid #CCC;
+                background-color: #E0E0E0;
+                padding: .5em;
+            }
+            .left {
+                float: left;
+            }
+            .right {
+                float: right;
+            }
+            div.clear {
+                clear: both;
+            }
+
+            #map {
+                border: 5px solid #E7EBDA;
+                height: 100%;
+                width: 74%;
+                float: left;
+            }
+
+            #results {
+                border: 5px solid #E7EBDA;
+                background: #98FB98;
+                height: 100%;
+                width: 24%;
+                float: right;
+            }
+
+            #over_map {
+                position: absolute;
+                top: 100px;
+                left: 65%;
+                z-index: 99;
+                background-color: #ccffcc;
+                padding: 10px;
+            }
+            
+            
+            html, body {
+                height: 100%;
+                margin: 2px;
+                padding: 0;
+            }
+        </style>
+    </head>
+
+    <body onload="changeStations('Line1'); window.setTimeout(function(){messageOnBoard(2000);},2000);displayCurrentTime();
+          window.setTimeout(function(){updateInformation(1000);},1000);">
+
+        <div id="pagination">
+            <!--
+            <span class="left">&laquo; Atrás</span> <span class="right">Siguiente &raquo;</span>
+            -->
+            <div class="clear"></div>
+        </div>
+
+        <div id="map"></div>
+        <div id="over_map">
+            <div>
+                <span>Buses encontrados: </span><span id="bus">0</span>
+            </div>
+        </div>
+
+        <div id="results">
+
+            <p>Ruta/estación</p>
+
+            <select name="route" id="route" onchange="changeStations(this.value);">
+                <!--<option value="" disable selected>Route</option> -->
+                <option value="Line1">Línea 1</option>
+                <option value="Line2">Línea 2</option>
+                <option value="Line3">Línea 3</option>
+            </select>
+
+            <select name="station" id="station">
+                <option value="" disable selected>Estación</option>
+            </select>
+
+
+            <p>Hora actual</p>    
+
+            <p align="center" id="currentTime"></p>
+
+
+            <p>Mensajes</p>            
+
+            <textarea id="board" name="msg" placeholder="" rows="6" cols="40"></textarea>
+             
+        </div>
+
+    </body>
+
+
+    <!-- Hora actual -->
+    <script type="text/javascript"> 
+        function displayC(){
+        var refresh=1000; //Frecuencia de actualización en milisegundos
+        mytime=setTimeout('displayCurrentTime()',refresh)
+        }
+
+        function displayCurrentTime() {
+        var x = new Date()
+        document.getElementById('currentTime').innerHTML = x;
+        displayC();
+        }
+    </script>
+
+
+    <!-- jQuery CDN -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/4.12.1/firebase.js"></script>
+
+    <script>
+        // web Firebase
+        var firebaseConfig = {
+        apiKey: "AIzaSyBcWAU98zyO5s_N7tUY8xfU9f4d6D8KSBo",
+        authDomain: "maps-f1ef8.firebaseapp.com",
+        databaseURL: "https://maps-f1ef8.firebaseio.com",
+        projectId: "maps-f1ef8",
+        storageBucket: "maps-f1ef8.appspot.com",
+        messagingSenderId: "895616828234",
+        appId: "1:895616828234:web:fd5645804bdbe8e68bb7b3",
+        measurementId: "G-7PW80WPTQM"
+        };
+        // Initializa Firebase
+        firebase.initializeApp(firebaseConfig);
+        //firebase.analytics();
+    </script>
+
+    <script src="http://code.jquery.com/jquery-1.7.min.js"></script>
+
+    <script>
+
+        var bus_count = 0; // contador de buses transmitiendo
+        // array para guardar todos los marcadores, tal que se pueda
+        // quitar un marcador cuando un vehículo esté fuera, y remover éste de la 
+        // base de datos en tiempo real
+        var markers = [];
+        var map;
+        var matrixPairs = [];
+        var markerRoutes = [];
+        var markerStations = [];
+        var routePath = [];
+        var mapCenter = [0.36822443255767856,-78.12626470792013];
+        var zoomMap = 15.1;
+        var colorRoute = ['#ef7f1a', '#00ff00', '#ef7fcc'];
+
+        var routeLine1 = [[0.3651525976034322, -78.13819967853607],
+        [0.3649943504839501, -78.13760959255279],
+        [0.36487901783576965, -78.13718848573745],
+        [0.36486560706264104, -78.13697390901626],
+        [0.3647797781140839, -78.13664399730743],
+        [0.3646376239162367, -78.13648306476654],
+        [0.36440818184460366, -78.1363271129227],
+        [0.3643223528916955, -78.13624396444324],
+        [0.3643169885821133, -78.13618026197913],
+        [0.36436794952302975, -78.13610650123123],
+        [0.3645185386259355, -78.13598750250226],
+        [0.36463118912401943, -78.13585138039475],
+        [0.36460973188640305, -78.13572062270528],
+        [0.36443900168148113, -78.13538224046162],
+        [0.364282185544261, -78.13521546978554],
+        [0.3637856385185475, -78.13468042820772],
+        [0.3631406702207967, -78.13395270102528],
+        [0.36278461411861557, -78.13366235189942],
+        [0.36206285548313205, -78.13300642625032],
+        [0.36161859453426887, -78.1325716254547],
+        [0.3609923503602418, -78.13188522147175],
+        [0.36087768819999744, -78.13174574660297],
+        [0.36059705264277, -78.13123376495587],
+        [0.3603963860730207, -78.1307539692587],
+        [0.3603092160041051, -78.13055079192583],
+        [0.3600461948480128, -78.13026559358539],
+        [0.35945580614080513, -78.1296363925978],
+        [0.35923926892679775, -78.1294067721886],
+        [0.35822204824766146, -78.1283104569021],
+        [0.357189324814218, -78.12734100105592],
+        [0.35691657775976443, -78.12709138370745],
+        [0.3566848097110005, -78.12688310813328],
+        [0.35658422882141333, -78.12678654860875],
+        [0.3561118451232189, -78.12595941963794],
+        [0.35602869824939193, -78.12573813739421],
+        [0.3558959314654553, -78.12538006249072],
+        [0.3558959314654553, -78.12538006249072],
+        [0.3557015848118351, -78.12487272881633],
+        [0.35531669522736514, -78.12485931777125],
+        [0.3552590288422464, -78.12489955090648]];
+
+        var routeLine2 = [[0.3691089299477141, -78.13730505312286],
+        [0.36881876781061723, -78.13603896489225],
+        [0.36767550649187786, -78.13628347104274],
+        [0.3678203427953066, -78.13679309075557],
+        [0.36774524249012425, -78.13680381959163],
+        [0.36760040618548684, -78.13631565755092],
+        [0.3668799461072249, -78.13675093270635],
+        [0.36624829881149773, -78.13577863193845],
+        [0.3654472173546941, -78.13628494949175],
+        [0.364807280741687, -78.13531569002441],
+        [0.36416273341132727, -78.13428704629422],
+        [0.3637918069690547, -78.13467963366332],
+        [0.3631383486792546, -78.13395287896834],
+        [0.36257911931460035, -78.13348751570426],
+        [0.3619917272828725, -78.13294570948325],
+        [0.3613614207224913, -78.1323234369918],
+        [0.3623699111980714, -78.13147049452506],
+        [0.36183298464139313, -78.13062479928692],
+        [0.36148966872707944, -78.13007226422985],
+        [0.3622864229240265, -78.1295616332854],
+        [0.36167757362875436, -78.12861481350315],
+        [0.3618519137395001, -78.12828490179432]];
+
+        var routeLine3 = [[0.37558203777308224, -78.12230342163105],
+        [0.37553912335077394, -78.12087648643512],
+        [0.3722358369070607, -78.12099496602033],
+        [0.368855908643015, -78.1210479651772],
+        [0.3676033429015188, -78.12103723634114],
+        [0.3673324453625634, -78.1209755455338],
+        [0.36709641581698704, -78.12079851973881],
+        [0.3662667800662594, -78.12001740336952],
+        [0.36609512219511114, -78.11997448802528],
+        [0.36593419293791113, -78.11996644139823],
+        [0.36525829002621174, -78.11997448802528],
+        [0.3645898167638784, -78.1200195399632],
+        [0.3648955823958152, -78.12113265670438],
+        [0.3654892913316105, -78.12449572384972],
+        [0.36509986000750777, -78.12434038185243],
+        [0.3650059845974271, -78.12432831191187],
+        [0.3649349075005645, -78.12432697080736],
+        [0.36420251281182586, -78.12456032299166],
+        [0.36410595523753964, -78.12455764078264],
+        [0.3642454272889669, -78.12488218807344],
+        [0.3641872043304932, -78.12496244141731],
+        [0.3630016901923367, -78.12541270024248],
+        [0.3621479113541985, -78.12574423490729],
+        [0.3618636028734433, -78.12507100044455],
+        [0.3617516228797581, -78.12516487776007],
+        [0.3615342156108578, -78.12528238666413],
+        [0.36148828369577946, -78.12533536029217],
+        [0.3614671617201522, -78.1253943688905],
+        [0.3614785608816148, -78.12550165725109],
+        [0.36226192122499185, -78.12668396205382],
+        [0.36155704974601444, -78.12714424356474],
+        [0.36181990099213024, -78.1274956129457],
+        [0.3594532059407787, -78.1296416846316],
+        [0.35867803252648145, -78.12881298131886],
+        [0.35790557143386226, -78.12795735664311],
+        [0.35718797287200954, -78.12734989711275],
+        [0.35697205923948677, -78.12715007254114],
+        [0.35673672646313886, -78.12739228526736],
+        [0.35589707545892757, -78.12762471092212],
+        [0.3560030367970965, -78.12791037471999]];
+
+        var stationsLine1 = [['Inicio', 0.365112532557928, -78.1380536355962],
+        ['Manta', 0.363832802561095, -78.1347463057693],
+        ['Parque', 0.361976630535899, -78.1329256473874],
+        ['Santa Isabel', 0.360397324337682, -78.1307502102255],
+        ['IESS', 0.358733666541497, -78.1288163375257],
+        ['Juan Pablo II', 0.357232656480213, -78.1273605378652],
+        ['Ignacio Burbano', 0.355991432178201, -78.1256874636225],
+        ['Final', 0.355314673848127, -78.1248616647747]];
+
+        var stationsLine2 = [['Inicio', 0.369108929947714, -78.1373050531229],
+        ['Zumba', 0.366248298811498, -78.1357786319385],
+        ['Antinarcóticos', 0.364162733411327, -78.1342870462942],
+        ['Parque', 0.361991727282872, -78.1329457094833],
+        ['Iglesia', 0.362369911198071, -78.1314704945251],
+        ['Santa Isabel', 0.361489668727079, -78.1300722642299],
+        ['Final', 0.3618519137395, -78.1282849017943]];
+
+        var stationsLine3 = [['Inicio', 0.375582037773082, -78.122303421631],
+        ['ITCA', 0.372235836907061, -78.1209949660203],
+        ['Ibarra', 0.365934192937911, -78.1199664413982],
+        ['Vaca Flores', 0.36548929133161, -78.1244957238497],
+        ['San Cristobal', 0.364187204330493, -78.1249624414173],
+        ['Guaranda', 0.362147911354198, -78.1257442349073],
+        ['Uruguay', 0.36181990099213, -78.1274956129457],
+        ['IESS', 0.358678032526481, -78.1288129813189],
+        ['Final', 0.356003036797096, -78.12791037472]];
+
+
+        //Nombres de las estaciones en cada ruta
+        var stationsByRoute = {
+        Line1: ['Inicio', 'Manta', 'Parque', 'Santa Isabel', 'IESS', 'Juan Pablo II', 'Ignacio Burbano', 'Final'],
+        Line2: ['Inicio', 'Zumba', 'Antinarcóticos', 'Parque', 'Iglesia', 'Santa Isabel', 'Final'],
+        Line3: ['Inicio', 'ITCA', 'Ibarra', 'Vaca Flores', 'San Cristobal', 'Guaranda', 'Uruguay', 'IESS', 'Final']
+        };
+
+        //Nombres de las líneas
+
+        var lines = ['Línea 1', 'Línea 2', 'Línea 3'];
+
+        //Tiempo absoluto en segundos para llegar a cada estación
+
+        var timeTableLine = {
+        Line1: [0, 2, 4, 6, 8, 10, 12, 14] * 60,
+        Line2: [0, 2, 4, 6, 8, 10, 12] * 60,
+        Line3: [0, 2, 4, 6, 8, 10, 12, 14, 16] * 60};
+
+        //Buses asignados a cada línea
+        //Este valor debería ser ajustado dinámicamente por el administrador de
+        //acuerdo a la tabla de trabajo
+
+        var todayWorkTable = [ //10 buses distribuidos entre 3 líneas
+        [6, 1, 10],   //buses en línea 1
+        [5, 9, 2],    //buses en línea 2
+        [8, 4, 7, 3]]; //buses en línea 3
+
+        
+        //Líneas de buses que pasan por las paradas pertenecientes a cada ruta
+        var linesPerStations1 = [[1],[1],[1,2],[1],[1,3],[1],[1],[1]];
+        var linesPerStations2 = [[2],[2],[2],[1,2],[1,3],[2],[2],[2]];
+        var linesPerStations3 = [[3],[3],[3],[3],[3],[3],[3],[1,3],[3]];
+
+        /*
+        var linesPerStations1 = [todayWorkTable[0], todayWorkTable[0], todayWorkTable[0] + todayWorkTable[1], todayWorkTable[0], todayWorkTable[0] + todayWorkTable[2], todayWorkTable[0], todayWorkTable[0], todayWorkTable[0]];
+        
+        var linesPerStations2 = [todayWorkTable[1], todayWorkTable[1], todayWorkTable[1], todayWorkTable[0]+todayWorkTable[1], todayWorkTable[0]+todayWorkTable[2], todayWorkTable[1], todayWorkTable[1], todayWorkTable[1]];
+        
+        var linesPerStations3 = [todayWorkTable[2], todayWorkTable[2], todayWorkTable[2], todayWorkTable[2], todayWorkTable[2], todayWorkTable[2], todayWorkTable[2], todayWorkTable[0]+todayWorkTable[2], todayWorkTable[2]];
+        */
+        //Tiempo de inicio para cada línea, este parámetro debe también ser ajustado
+        //dinámicamente por el administrador
+
+        var startTime = {
+        Line1: [Date.now()],
+        Line2: [Date.now()],
+        Line3: [Date.now()]};
+        
+        //Datos de tiempo real para cada bus, su tamaño cambia
+        //dinámicamente dependiendo del número de buses añadidos al sistema.
+        //Por ahora, se ajusta a 10 buses y tiene la siguiente forma
+        //[route, latitude, longitude, instantaneous speed, mean speed, time, angle, ESTADO]
+
+        var rtDataBuses = [
+        [0, 0, 0, 0, 0, 0, 0, 6],  //bus 1
+        [0, 0, 0, 0, 0, 0, 0, 6],  //bus 2
+        [0, 0, 0, 0, 0, 0, 0, 6],
+        [0, 0, 0, 0, 0, 0, 0, 6],
+        [0, 0, 0, 0, 0, 0, 0, 6],
+        [0, 0, 0, 0, 0, 0, 0, 6],
+        [0, 0, 0, 0, 0, 0, 0, 6],
+        [0, 0, 0, 0, 0, 0, 0, 6],
+        [0, 0, 0, 0, 0, 0, 0, 6],
+        [0, 0, 0, 0, 0, 0, 0, 6], //bus 10
+        [0, 0, 0, 0, 0, 0, 0, 6]]; 
+
+        
+        ////////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////////
+        // Tablero de mensajes
+
+        var msgBoard = ['', '', '', '', '', ''];
+        var currentMessage = '';
+        var messageChanged = 0;
+       
+        var countMessage = 0;       
+        
+        function messageOnBoard(milliseconds)
+        {   
+            if(messageChanged === 1)
+            {
+                let countM = 0;
+                messageChanged = 0;
+                for (countM = msgBoard.length; countM >= 1; countM--)
+                {               
+                    msgBoard[countM-1] = msgBoard[countM-2];
+                }
+                
+                msgBoard[0] = currentMessage;
+                
+                currentMessage = [];
+            
+                //console.log(msgBoard);
+
+                let newMessage = '';
+
+                for (count = 0; count < msgBoard.length; count++)
+                {               
+                    newMessage = newMessage + msgBoard[count] + '\r\n';
+                }
+
+                //console.log(newMessage);
+
+                document.getElementById('board').value = newMessage;
+
+                window.setTimeout(function(){messageOnBoard(milliseconds);},milliseconds);//refresh               
+            }
+ 
+        }    
+        
+        //Actualización de información de navegación de los buses
+
+        function updateInformation(milliseconds)
+        {
+            //Extrae los nombres de ruta y estación seleccionadas en los botones
+
+            let a = document.getElementById("route");
+            let routE = a.options[a.selectedIndex].value;
+            a = document.getElementById("station");
+            let statioN = a.options[a.selectedIndex].value;
+
+            //console.log(routE);
+            //console.log(statioN);
+
+            //Traduce la estación seleccionada en el índice stationIndex
+
+            let stationIndex = stationsByRoute[routE].indexOf(statioN);
+                    
+            //console.log(stationIndex);
+
+            //Con la ruta y el índice de estación, se obtiene la ubicación GPS
+            //de la estación
+            //Adicionalmente, obtiene las líneas a las que pertenece cada estación
+
+            var stationLat;
+            var stationLng;
+            var lps;
+
+            switch (routE)
+            {
+                case 'Line1':
+                    stationLat = stationsLine1[stationIndex][1];
+                    stationLng = stationsLine1[stationIndex][2];
+                    lps = linesPerStations1[stationIndex];
+                    break;
+
+                case 'Line2':
+                    stationLat = stationsLine1[stationIndex][1];
+                    stationLng = stationsLine1[stationIndex][2];
+                    lps = linesPerStations2[stationIndex];
+                    break;
+
+                case 'Line3':
+                    stationLat = stationsLine3[stationIndex][1];
+                    stationLng = stationsLine3[stationIndex][2];
+                    lps = linesPerStations3[stationIndex];
+                    break;
+
+                default: //por defecto, estación 1
+                    stationLat = stationsLine1[stationIndex][1];
+                    stationLng = stationsLine1[stationIndex][2];
+                    lps = linesPerStations1[stationIndex];
+            }
+
+            var BusesOnThisStop = [];
+            let idx;
+            let ii=0
+            
+            for (idx = 0; idx < rtDataBuses.length; idx++)//verifica en todos los buses
+            {
+                //console.log(idx)
+                if (lps.includes(rtDataBuses[idx][0]))//pregunta qué número de bus, con esa línea, pasa por la parada
+                {
+                    BusesOnThisStop[ii] = idx+1;
+                    ii++;
+                }
+            }
+             
+            console.log('Parada ', stationIndex, 'Líneas ', lps, 'Buses ', BusesOnThisStop); 
+            
+                      
+            let distance = [];
+            let estado = '';
+            
+            let umbralLlegada = 100;//m
+            let umbralSalida1 = 20;
+            let umbralSalida2 = 50;
+            let umbralMinutos = 50; //min
+            let umbralSegundos = 30; //sec
+            let dist = 0;
+            
+            
+            //verifica para todos los buses
+            for (idx = 0; idx < BusesOnThisStop.length; idx++)
+            {
+                
+                console.log("BUS",BusesOnThisStop[idx], "ESTADO", rtDataBuses[BusesOnThisStop[idx]][7])
+                
+                //dist = getDistance(stationLat, stationLng,
+                //              rtDataBuses[BusesOnThisStop[idx]-1][1], .length
+                //              rtDataBuses[BusesOnThisStop[idx]-1][2]);
+                    
+            
+                //console.log("Distancia",dist)
+                
+                
+                //console.log("bus", BusesOnThisStop[idx], "latitud", rtDataBuses[BusesOnThisStop[idx]][1], "longitud", rtDataBuses[BusesOnThisStop[idx]][2])               
+                
+                switch (rtDataBuses[BusesOnThisStop[idx]][7])
+                {
+                    case 0: //distanteEntrada
+
+                        break;
+
+                    case 1: //cerca
+                        
+                        dist = getDistance(stationLat, stationLng,
+                              rtDataBuses[BusesOnThisStop[idx]][1], 
+                              rtDataBuses[BusesOnThisStop[idx]][2]);
+                        
+                        estado = "cerca";
+                        if(dist <= umbralMinutos)
+                        {
+                            rtDataBuses[BusesOnThisStop[idx]][7] = 2;    
+                        }
+                        break;
+
+                    case 2: //arribando
+                        
+                        dist = getDistance(stationLat, stationLng,
+                              rtDataBuses[BusesOnThisStop[idx]][1], 
+                              rtDataBuses[BusesOnThisStop[idx]][2]);
+                        
+                        estado = "arribando";
+                        if(dist <= umbralSegundos)
+                        {
+                            rtDataBuses[BusesOnThisStop[idx]][7] = 3;    
+                        }
+                        break;
+
+                    case 3: //enParada
+                        dist = getDistance(stationLat, stationLng,
+                              rtDataBuses[BusesOnThisStop[idx]][1], 
+                              rtDataBuses[BusesOnThisStop[idx]][2]);
+                        
+                        estado = "en la parada";
+                        if(dist >= umbralSalida1)
+                        {
+                            rtDataBuses[BusesOnThisStop[idx]][7] = 4;    
+                        }
+                        break;
+
+                    case 4: //partiendo
+                        dist = getDistance(stationLat, stationLng,
+                              rtDataBuses[BusesOnThisStop[idx]][1], 
+                              rtDataBuses[BusesOnThisStop[idx]][2]);
+                        
+                        estado = "partiendo";
+                        if(dist >= umbralSalida2)
+                        {
+                            rtDataBuses[BusesOnThisStop[idx]][7] = 2;    
+                        }
+                        break;                 
+
+                    case 5: //distanteSalida
+                        estado = "DISTANTE SALIDA";
+                        break;                 
+
+                    case 6: //ruedaTerminada
+                        estado = "RUEDA TERMINADA";
+                        
+                        dist = getDistance(stationLat, stationLng,
+                              rtDataBuses[BusesOnThisStop[idx]][1], 
+                              rtDataBuses[BusesOnThisStop[idx]][2]);
+                        
+                        console.log(dist)
+                        
+                        if(dist <= umbralLlegada)
+                        {
+                            rtDataBuses[BusesOnThisStop[idx]][7] = 1;   
+                        }
+                        
+                    default: //error
+                        //error
+                }
+                
+                               
+                //distance.push(dist);
+                    
+                    
+                
+                /*
+                if(dist >= 100)
+                {
+                    //Muestra distancia y tiempo de llegada (en minutos o segundos)
+                    //Buscar el mecanismo para cuando parta, borrar el mensaje
+                    estado = "3 min";
+                }
+                else
+                {
+                    if(dist <= 30)
+                    {
+                        //En la parada
+                        estado = "EN LA PARADA";
+                    }
+                    else
+                    {
+                        //buscar el mecanismo para colocar "arribando" o "partiendo"
+                        estado = "ARRIBANDO en 20 seg";
+                    }
+
+                }*/
+
+            }
+
+            //console.log(distance)
+           
+            /*
+            Busca el más cercano
+            Predice con el bus más cercano:
+                en el punto de control anterior, llegó a tiempo?
+                    no: calcula retardo y pone retrasado
+                    sí: muestra tiempo de llegada en función de la diferencia de hora
+                        si la diferencia de hora es cero y no llega, pone retrasado y calcula retraso,
+                                                         y llega, pone arribando     
+            
+            */
+            
+
+            /* Por hacer
+
+            Revisar update information línea 397
+            Añadir cálculo en función de delays
+            Verificar principio de velocidad promedio
+            Agregar filtro en rotación
+
+
+            GESTIÓN DE TIEMPO
+            Matemática
+            Algoritmos - estados
+            Mensajes
+
+               */         
+
+
+
+            
+
+            currentMessage = 'Bus ' + BusesOnThisStop[0] + ' @ ' + lines[rtDataBuses[BusesOnThisStop[0]-1][0]-1] + ': ' + estado;
+            
+            messageChanged = 1;
+            
+            
+            //rtDataBuses[busData.id-1] = [count+1, busData.lat, busData.lng, busData.speed, avgSpeed, busData.time, rot];
+
+
+            /*
+
+            -Discriminar entre cuál es el próximo en función de la distancia a la parada
+            DISTANCIA ENTRE DOS PUNTOS A TRAVÉS DE LA CARRETERA
+
+            */
+            
+            //console.log(rtDataBuses[idx]);
+
+
+            //COSAS POR HACER:
+            
+            //en WEB
+            //Crear tabla de inicios de itinerarios
+            //tomar tabla de retardos hasta cada parada
+            //aplicar algoritmo de retardos
+            //aplicar base de datos???
+            //mirar si la cabecera del mensaje se repite con el fin de mantenerla
+            //manejar un buffer para más de un mensaje
+            
+            
+            //EN PYTHON
+            //aumentar buses, cambiar orden, crear una propia tabla de navegación,
+            //por lo menos en bus 1
+
+            window.setTimeout(function(){updateInformation(milliseconds);},milliseconds);//refresh
+        }
+
+
+        function calculateRotation(lat1, lng1, lat2, lng2, rotOld)
+        {
+
+            //lat1 - latitud de la primera posicion
+            //lng1 - longitud de la primera posicion
+            //lat2 - latitud de la segunda posicion
+            //lng2 - longitud de la segunda posicion
+
+            var dLon = (lng2 - lng1);
+            var y = Math.sin(dLon) * Math.cos(lat2);
+            var x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+            var brng = Math.atan2(y, x) * 180 / Math.PI;
+            brng = 180 - ((brng + 180) % 180);
+
+            //filter
+            let rot = rotOld + (brng - rotOld) * 0.5;
+
+            return rot;
+
+        }
+
+        /////////////////////////////////////
+        // Gráfica de las rutas sobre el mapa
+        /////////////////////////////////////
+
+        function drawRoute(route, stations, color)
+        {
+            //Rutas
+
+            var count;
+            for (count = 0; count < route.length; count++)
+            {
+            /*markerRoutes = new google.maps.Marker({
+            position: new google.maps.LatLng(matrixPairs[count][0], matrixPairs[count][1]),
+            map: map
+            });*/
+            if (count !== (route.length - 1))
+            {
+            routePath = new google.maps.Polyline({
+            path: [new google.maps.LatLng(route[count][0], route[count][1]),
+            new google.maps.LatLng(route[count + 1][0], route[count + 1][1])],
+            strokeColor: color,
+            strokeOpacity: 0.5,
+            strokeWeight: 6
+            });
+            routePath.setMap(map);
+            }
+            }
+
+            //Estaciones
+
+            var image = 'icons/bus7.png';
+
+            for (count = 0; count < stations.length; count++)
+            {
+            markerStations = new google.maps.Marker({
+            position: new google.maps.LatLng(stations[count][1],
+            stations[count][2]),
+            map: map,
+            icon: image,
+            scale: 0.01,
+            title: stations[count][0]
+            });
+            }
+        }
+
+        function changeStations(value)
+        {
+
+            if (value.length === 0)
+                document.getElementById("station").innerHTML = "<option></option>";
+            else
+            {
+                var catOptions = "";
+                for (routeId in stationsByRoute[value])
+                {
+                    catOptions += "<option>" + stationsByRoute[value][routeId] + "</option>";
+                }
+                document.getElementById("station").innerHTML = catOptions;
+            }
+
+        }
+
+        function getDistance(lat1, lon1, lat2, lon2)
+        {
+            if ((lat1 === lat2) && (lon1 === lon2))
+            {
+                return 0;
+            }
+            else
+            {
+                var R = 6371e3; //radio de la tierra en metros
+                var phi1 = Math.PI * lat1 / 180;
+                var phi2 = Math.PI * lat2 / 180;
+                var delta_phi = Math.PI * (lat2 - lat1) / 180;
+                var delta_lambda = Math.PI * (lon2 - lon1) / 180;
+
+                var a = Math.sin(delta_phi / 2) * Math.sin(delta_phi / 2) +
+                Math.cos(phi1) * Math.cos(phi2) *
+                Math.sin(delta_lambda / 2) * Math.sin(delta_lambda / 2);
+                var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+                let d = R * c;
+                return d;
+            }
+
+        }
+
+        ///////////////////////////
+        // Inicialización del mapa
+        ///////////////////////////
+
+        function initMap()
+        { 
+            map = new google.maps.Map(document.getElementById('map'),
+            {
+                zoom: zoomMap,
+                center: new google.maps.LatLng(mapCenter[0], mapCenter[1]),
+                //mapTypeId: 'terrain'
+                //mapTypeId: 'hybrid'
+                //mapTypeId: 'satellite'
+                mapTypeId: 'roadmap'
+            });
+
+            //Grafica las 3 rutas ingresadas hasta ahora
+            drawRoute(routeLine1, stationsLine1, colorRoute[0]);
+            drawRoute(routeLine2, stationsLine2, colorRoute[1]);
+            drawRoute(routeLine3, stationsLine3, colorRoute[2]);
+
+        }
+
+        ///////////////////////////
+        // Función principal usada por el evento de
+        // cambio de ubicación de un vehículo
+        ///////////////////////////
+
+        // Crea el ícono de vehículo con ángulo y agrega/muestra
+        // el marcador sobre el mapa.
+        // Guarda la información instantánea de todos los vehículos.        
+
+        function updateBus(data)
+        {
+            var busData = JSON.parse(JSON.stringify(data));
+
+            //A qué línea pertenece el bus, siguiendo todayWorkTable
+
+            let count = 0;
+            let a = -1;
+            
+            for (count = 0; count < todayWorkTable.length; ++count)
+            {
+                a = todayWorkTable[count].indexOf(busData.id);
+
+                //console.log(todayWorkTable[count], busData.id, a);
+
+                if (a !== -1)
+                {
+                    break;
+                }
+            }
+
+            //El bus no trabaja hoy
+            if (a === -1)
+                console.log('Bus ' + busData.id + ' no registrado en alguna línea, hoy!');
+                
+            //El bus trabaja hoy
+            else
+            {
+                //ángulo de orientación para el ícono del vehículo
+                var rot = calculateRotation(rtDataBuses[busData.id-1][1], rtDataBuses[busData.id-1][2],
+                          busData.lat, busData.lng, rtDataBuses[busData.id-1][6]);  
+
+                var carIcon =   // ícono del vehículo
+                {
+                    path: 'M29.395,0H17.636c-3.117,0-5.643,3.467-5.643,6.584v34.804c0,3.116,2.526,5.644,5.643,5.644h11.759   c3.116,0,5.644-2.527,5.644-5.644V6.584C35.037,3.467,32.511,0,29.395,0z M34.05,14.188v11.665l-2.729,0.351v-4.806L34.05,14.188z    M32.618,10.773c-1.016,3.9-2.219,8.51-2.219,8.51H16.631l-2.222-8.51C14.41,10.773,23.293,7.755,32.618,10.773z M15.741,21.713   v4.492l-2.73-0.349V14.502L15.741,21.713z M13.011,37.938V27.579l2.73,0.343v8.196L13.011,37.938z M14.568,40.882l2.218-3.336   h13.771l2.219,3.336H14.568z M31.321,35.805v-7.872l2.729-0.355v10.048L31.321,35.805',
+                    scale: 0.5,
+                    fillColor: "#427af4", //<-- color del bus
+                    fillOpacity: 1,
+                    strokeWeight: 1,
+                    anchor: new google.maps.Point(0, 5),
+                    rotation: rot //<-- ángulo del bus
+                };
+
+                var lat_lng = {lat: busData.lat, lng: busData.lng};
+
+                var marker = new google.maps.Marker(
+                {
+                    position: lat_lng,
+                    icon: carIcon,
+                    map: map,
+                    label: busData.id.toString()
+                });
+
+                markers[data.key] = marker; // adiciona marcador al array de marcadores
+
+                document.getElementById("bus").innerHTML = bus_count;
+
+                ///////////////////////////
+                // Estructura de la información obtenida desde la DB
+                // [ruta, latitud, longitud, velocidad instántanea, velocidad media, tiempo, rotación]
+                ///////////////////////////
+                
+                let avgSpeed = (busData.speed + rtDataBuses[busData.id][3]) / 2;
+                
+                //console.log(busData.id, avgSpeed);
+                
+                let iii;
+                let aaa = [count+1, busData.lat, busData.lng, busData.speed, avgSpeed, busData.time, rot];
+                
+                for(iii=0; iii<7; iii++)
+                {
+                    rtDataBuses[busData.id-1][iii] = aaa[iii]; 
+                }
+                
+                /*console.log(rtDataBuses[0]);
+                console.log(rtDataBuses[1]);
+                console.log(rtDataBuses[2]);
+                console.log('');*/
+
+                //console.log(todayWorkTable[0], todayWorkTable[1], todayWorkTable[2], count, busData.id);
+
+            }
+
+        }
+
+        
+        ///////////////////////////
+        // Eventos
+        ///////////////////////////
+
+        //Se dispara cuando un nuevo objeto se adiciona en la base de datos       
+         
+        var bus_Ref = firebase.database().ref('/'); //toma referencia de la base de datos Firebase
+        
+        bus_Ref.on('child_added', function (data)
+        {
+            bus_count++;
+            updateBus(data);
+        });
+
+        //Se dispara cuando hay un cambio en la ubicación de cualquier vehículo
+        
+        bus_Ref.on('child_changed', function (data)
+        {
+            markers[data.key].setMap(null);
+            updateBus(data);
+        });
+
+        //Se dispara si algún vehículo se desconecta, se remueve el marcador de ese vehículo
+        
+        bus_Ref.on('child_removed', function (data)
+        {
+            markers[data.key].setMap(null);
+            bus_count--;
+            document.getElementById("bus").innerHTML = bus_count;
+        });
+        
+    </script>
+
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAxyTouIqS3cJswsst4kpNWGbKwrwbkmd0&callback=initMap">
+    </script>
+
+</html>
+
